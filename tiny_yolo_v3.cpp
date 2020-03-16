@@ -445,11 +445,22 @@ int main(int argc, char* argv[])
     diff = timedifference_msec(start_time,stop_time);
 
     // Get pointer to output tensor float values
-    float* floatarr;
-    g_ort->GetTensorMutableData(output_tensor[0], (void**)&floatarr);
-    for(int i = 0; floatarr[i] != 0; i++){
+    float* output1,output2,output3;
+    g_ort->GetTensorMutableData(output_tensor[0], (void**)&output1);
+    g_ort->GetTensorMutableData(output_tensor[1], (void**)&output2);
+    g_ort->GetTensorMutableData(output_tensor[2], (void**)&output3);
+    
+    for(int i = 0; output1[i] != 0; i++){
         printf(" i: %d", i);
-        printf(" output: %f\n", floatarr[i]);
+        printf(" output: %f\n", output1[i]);
+    }
+    for(int i = 0; output2[i] != 0; i++){
+        printf(" i: %d", i);
+        printf(" output: %f\n", output2[i]);
+    }
+    for(int i = 0; output3[i] != 0; i++){
+        printf(" i: %d", i);
+        printf(" output: %f\n", output3[i]);
     }
 /*
         if(loadLabelFile(filename) != 0)
