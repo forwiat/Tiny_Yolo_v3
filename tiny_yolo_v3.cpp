@@ -416,51 +416,67 @@ int main(int argc, char* argv[])
     input_node_dims.push_back(input_node_dims_shape);
     
     
-    std::vector<OrtValue *> input_tensor(input_node_names.size());
+    //std::vector<OrtValue* > input_tensor(input_node_names.size());
+    OrtValue* input_tensor_image = NULL;
+    OrtValue* input_tensor_shape = NULL;
     
-    
-    CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values.data(), input_tensor_size*sizeof(float), input_node_dims_input.data(), 4, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor[0]));
-    CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values_shape.data(), 2*sizeof(float), input_node_dims_shape.data(), 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor[1]));
+    CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values.data(), input_tensor_size*sizeof(float), input_node_dims_input.data(), 4, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor_image));
+    CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values_shape.data(), 2*sizeof(float), input_node_dims_shape.data(), 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor_shape));
 
+    
     int is_tensor;
-    for(int i = 0; i < input_tensor.size(); i++){
-        CheckStatus(g_ort->IsTensor(input_tensor[i],&is_tensor));
-        assert(is_tensor);
-    }
+    CheckStatus(g_ort->IsTensor(input_tensor_image,&is_tensor));
+    assert(is_tensor);
+    CheckStatus(g_ort->IsTensor(input_tensor_shape,&is_tensor));
+    assert(is_tensor);
     g_ort->ReleaseMemoryInfo(memory_info);
-
+    
+    //printf("hoaphan %f \n", **input_tensor_shape);
+    const OrtValue* const* input_tensor_image_pt = &input_tensor_image;
+    const OrtValue* const* input_tensor_shape_pt = &input_tensor_shape;
+    
+    
+    std::vector<const OrtValue*> input_tensor;
+    input_tensor.push_back((const OrtValue* )input_tensor_image);
+    input_tensor.push_back((const OrtValue* )input_tensor_shape);
+    
+    
+    printf("hoaphan %zu \n", input_tensor_image);
+    printf("hoaphan %zu \n", input_tensor_shape);
+    printf("hoaphan %zu \n", input_tensor.data());
+    printf("hoaphan %zu \n", input_tensor[0]);
+    printf("hoaphan %zu \n", input_tensor[1]);
+    
+    
     // RUN: score model & input tensor, get back output tensor
     //OrtValue* output_tensor = NULL;
-    std::vector<OrtValue *> output_tensor(output_node_names.size());
+    std::vector<OrtValue *> output_tensor;
+    OrtValue* output_tensor_boxes = NULL;
+    OrtValue* output_tensor_scores = NULL;
+    OrtValue* output_tensor_classes = NULL;
+    output_tensor.push_back(output_tensor_boxes);
+    output_tensor.push_back(output_tensor_scores);
+    output_tensor.push_back(output_tensor_classes);
     
     gettimeofday(&start_time, nullptr);
-    CheckStatus(g_ort->Run(session, NULL, input_node_names.data(), (const OrtValue* const*)input_tensor.data(), 2, output_node_names.data(), 3, output_tensor.data()));
+    CheckStatus(g_ort->Run(session, NULL, input_node_names.data(), input_tensor.data(), 2, output_node_names.data(), 3, output_tensor.data()));
+    
     gettimeofday(&stop_time, nullptr);
+    
     
     for(int i = 0; i < output_tensor.size(); i++){
         CheckStatus(g_ort->IsTensor(output_tensor[i],&is_tensor));
         assert(is_tensor);
     }
-    //assert(g_ort->IsTensor(output_tensor));
+    
     diff = timedifference_msec(start_time,stop_time);
 
     // Get pointer to output tensor float values
-    float* output1,output2,output3;
-    g_ort->GetTensorMutableData(output_tensor[0], (void**)&output1);
-    g_ort->GetTensorMutableData(output_tensor[1], (void**)&output2);
-    g_ort->GetTensorMutableData(output_tensor[2], (void**)&output3);
-    
-    for(int i = 0; output1[i] != 0; i++){
+    float* floatarr;
+    g_ort->GetTensorMutableData(output_tensor_scores, (void**)&floatarr);
+    for(int i = 0; floatarr[i] != 0; i++){
         printf(" i: %d", i);
-        printf(" output: %f\n", output1[i]);
-    }
-    for(int i = 0; output2[i] != 0; i++){
-        printf(" i: %d", i);
-        printf(" output: %f\n", output2[i]);
-    }
-    for(int i = 0; output3[i] != 0; i++){
-        printf(" i: %d", i);
-        printf(" output: %f\n", output3[i]);
+        printf(" output: %f\n", floatarr[i]);
     }
 /*
         if(loadLabelFile(filename) != 0)
@@ -551,7 +567,7 @@ int main(int argc, char* argv[])
         printf("\x1b[0m");
 */
 
-    delete imge;
+        delete imge;
 
 
   g_ort->ReleaseSession(session);
