@@ -464,6 +464,13 @@ int main(int argc, char* argv[])
     gettimeofday(&stop_time, nullptr);
     
     
+    CheckStatus(g_ort->IsTensor(output_tensor_boxes,&is_tensor));
+    assert(is_tensor);
+    CheckStatus(g_ort->IsTensor(output_tensor_scores,&is_tensor));
+    assert(is_tensor);
+    CheckStatus(g_ort->IsTensor(output_tensor_classes,&is_tensor));
+    assert(is_tensor);
+    /*
     for(int i = 0; i < output_tensor.size(); i++){
         CheckStatus(g_ort->IsTensor(output_tensor[i],&is_tensor));
         assert(is_tensor);
