@@ -439,7 +439,8 @@ int main(int argc, char* argv[])
     std::vector<const OrtValue*> input_tensor;
     input_tensor.push_back((const OrtValue* )input_tensor_image);
     input_tensor.push_back((const OrtValue* )input_tensor_shape);
-    
+    CheckStatus(g_ort->IsTensor(input_tensor[0],&is_tensor));
+    assert(is_tensor);
     
     printf("hoaphan %zu \n", input_tensor_image);
     printf("hoaphan %zu \n", input_tensor_shape);
@@ -459,10 +460,14 @@ int main(int argc, char* argv[])
     output_tensor.push_back(output_tensor_classes);
     
     gettimeofday(&start_time, nullptr);
-    CheckStatus(g_ort->Run(session, NULL, input_node_names.data(), input_tensor.data(), 2, output_node_names.data(), 3, output_tensor.data()));
+    //CheckStatus(g_ort->Run(session, NULL, input_node_names.data(), input_tensor.data(), 2, output_node_names.data(), 3, output_tensor.data()));
+    CheckStatus(g_ort->Run(session, NULL, input_node_names.data(), &input_tensor[0], 2, output_node_names.data(), 3, &output_tensor[0]));
     
     gettimeofday(&stop_time, nullptr);
     
+    output_tensor_boxes = output_tensor[0];
+    output_tensor_scores = output_tensor[1];
+    output_tensor_classes = output_tensor[2];
     
     CheckStatus(g_ort->IsTensor(output_tensor_boxes,&is_tensor));
     assert(is_tensor);
@@ -470,20 +475,27 @@ int main(int argc, char* argv[])
     assert(is_tensor);
     CheckStatus(g_ort->IsTensor(output_tensor_classes,&is_tensor));
     assert(is_tensor);
-    /*
-    for(int i = 0; i < output_tensor.size(); i++){
-        CheckStatus(g_ort->IsTensor(output_tensor[i],&is_tensor));
-        assert(is_tensor);
-    }
     
     diff = timedifference_msec(start_time,stop_time);
 
     // Get pointer to output tensor float values
-    float* floatarr;
-    g_ort->GetTensorMutableData(output_tensor_scores, (void**)&floatarr);
-    for(int i = 0; floatarr[i] != 0; i++){
-        printf(" i: %d", i);
-        printf(" output: %f\n", floatarr[i]);
+    float* boxs;
+    g_ort->GetTensorMutableData(output_tensor_boxes, (void**)&boxs);
+    for(int i = 0; boxs[i] != 0; i++){
+        printf(" boxs: %d", i);
+        printf(" output: %f\n", boxs[i]);
+    }
+    float* scores;
+    g_ort->GetTensorMutableData(output_tensor_scores, (void**)&scores);
+    for(int i = 0; scores[i] != 0; i++){
+        printf(" scores: %d", i);
+        printf(" output: %f\n", scores[i]);
+    }
+    float* classes;
+    g_ort->GetTensorMutableData(output_tensor_classes, (void**)&classes);
+    for(int i = 0; classes[i] != 0; i++){
+        printf(" classes: %d", i);
+        printf(" output: %f\n", classes[i]);
     }
 /*
         if(loadLabelFile(filename) != 0)
