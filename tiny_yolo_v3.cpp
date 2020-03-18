@@ -419,9 +419,12 @@ int main(int argc, char* argv[])
     //std::vector<OrtValue* > input_tensor(input_node_names.size());
     OrtValue* input_tensor_image = NULL;
     OrtValue* input_tensor_shape = NULL;
+    //OrtValue* input_tensor[2] = {nullptr};
     
     CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values.data(), input_tensor_size*sizeof(float), input_node_dims_input.data(), 4, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor_image));
     CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values_shape.data(), 2*sizeof(float), input_node_dims_shape.data(), 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor_shape));
+    //CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values.data(), input_tensor_size*sizeof(float), input_node_dims_input.data(), 4, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor[0]));
+    //CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values_shape.data(), 2*sizeof(float), input_node_dims_shape.data(), 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor[1]));
 
     
     int is_tensor;
@@ -431,14 +434,16 @@ int main(int argc, char* argv[])
     assert(is_tensor);
     g_ort->ReleaseMemoryInfo(memory_info);
     
-    //printf("hoaphan %f \n", **input_tensor_shape);
-    const OrtValue* const* input_tensor_image_pt = &input_tensor_image;
-    const OrtValue* const* input_tensor_shape_pt = &input_tensor_shape;
     
     
-    std::vector<const OrtValue*> input_tensor;
-    input_tensor.push_back((const OrtValue* )input_tensor_image);
-    input_tensor.push_back((const OrtValue* )input_tensor_shape);
+    std::vector<const OrtValue*> input_tensor(2);
+    //input_tensor.push_back((const OrtValue* )input_tensor_image);
+    //input_tensor.push_back((const OrtValue* )input_tensor_shape);
+    
+    
+    input_tensor[0] = input_tensor_shape;
+    input_tensor[1] = input_tensor_image;
+    
     CheckStatus(g_ort->IsTensor(input_tensor[0],&is_tensor));
     assert(is_tensor);
     
@@ -450,18 +455,22 @@ int main(int argc, char* argv[])
     
     
     // RUN: score model & input tensor, get back output tensor
-    //OrtValue* output_tensor = NULL;
-    std::vector<OrtValue *> output_tensor;
+    //OrtValue* output_tensor[3] = {nullptr};
+    std::vector<OrtValue *> output_tensor(3);
     OrtValue* output_tensor_boxes = NULL;
     OrtValue* output_tensor_scores = NULL;
     OrtValue* output_tensor_classes = NULL;
-    output_tensor.push_back(output_tensor_boxes);
-    output_tensor.push_back(output_tensor_scores);
-    output_tensor.push_back(output_tensor_classes);
+    //output_tensor[0] = output_tensor_boxes;
+    //output_tensor[1] = output_tensor_scores;
+    //output_tensor[2] = output_tensor_classes;
+    
+    std::vector<const char*> input_names = { "image_shape", "input_1"};
+    //std::vector<const char*> input_names = { "input_1", "image_shape"};
     
     gettimeofday(&start_time, nullptr);
     //CheckStatus(g_ort->Run(session, NULL, input_node_names.data(), input_tensor.data(), 2, output_node_names.data(), 3, output_tensor.data()));
-    CheckStatus(g_ort->Run(session, NULL, input_node_names.data(), &input_tensor[0], 2, output_node_names.data(), 3, &output_tensor[0]));
+    //CheckStatus(g_ort->Run(session, NULL, input_names.data(), &input_tensor[0], 2, output_node_names.data(), 3, output_tensor));
+    CheckStatus(g_ort->Run(session, NULL, input_names.data(), input_tensor.data(), 2, output_node_names.data(), 3, output_tensor.data()));
     
     gettimeofday(&stop_time, nullptr);
     
@@ -478,10 +487,11 @@ int main(int argc, char* argv[])
     
     diff = timedifference_msec(start_time,stop_time);
 
+    
     // Get pointer to output tensor float values
     float* boxs;
     g_ort->GetTensorMutableData(output_tensor_boxes, (void**)&boxs);
-    for(int i = 0; boxs[i] != 0; i++){
+    for(int i = 10000; boxs[i] != 0; i++){
         printf(" boxs: %d", i);
         printf(" output: %f\n", boxs[i]);
     }

@@ -25,7 +25,7 @@ onnxruntime: tiny_yolo_v3.cpp
 	-lonnxruntime_util \
 	-lonnxruntime_mlas \
 	-lonnx \
-	-ljpeg -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_photo -lopencv_imgcodecs \
+	-ljpeg -ltbb -ltiff -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_photo -lopencv_imgcodecs \
 	-lpthread -O2 -fopenmp -ldl ${LDFLAGS} -o tiny_yolo_v3
 
 clean:
