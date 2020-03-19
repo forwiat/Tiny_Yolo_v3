@@ -317,6 +317,11 @@ int main(int argc, char* argv[])
         printf("Output %d : num_dims=%zu\n", i, num_dims);
         output_node_dims.resize(num_dims);
         g_ort->GetDimensions(tensor_info, (int64_t*)output_node_dims.data(), num_dims);
+        
+        size_t count;
+        g_ort->GetTensorShapeElementCount(tensor_info, &count);
+        printf("count %d \n", count);
+        
         for (int j = 0; j < num_dims; j++) {
             printf("Output %d : dim %d=%jd\n", i, j, output_node_dims[j]);
         }
@@ -400,6 +405,7 @@ int main(int argc, char* argv[])
             }
         }
     }
+    
     std::vector<float> input_tensor_values_shape(2);
     input_tensor_values_shape[0] = 416;
     input_tensor_values_shape[1] = 416;
@@ -441,17 +447,17 @@ int main(int argc, char* argv[])
     //input_tensor.push_back((const OrtValue* )input_tensor_shape);
     
     
-    input_tensor[0] = input_tensor_shape;
-    input_tensor[1] = input_tensor_image;
+    input_tensor[0] = input_tensor_image;
+    input_tensor[1] = input_tensor_shape;
     
     CheckStatus(g_ort->IsTensor(input_tensor[0],&is_tensor));
     assert(is_tensor);
     
-    printf("hoaphan %zu \n", input_tensor_image);
-    printf("hoaphan %zu \n", input_tensor_shape);
-    printf("hoaphan %zu \n", input_tensor.data());
-    printf("hoaphan %zu \n", input_tensor[0]);
-    printf("hoaphan %zu \n", input_tensor[1]);
+    printf("input_tensor_image %zu \n", input_tensor_image);
+    printf("input_tensor_shape %zu \n", input_tensor_shape);
+    printf("input_tensor %zu \n", input_tensor.data());
+    printf("input_tensor[0] %zu \n", input_tensor[0]);
+    printf("input_tensor[1] %zu \n", input_tensor[1]);
     
     
     // RUN: score model & input tensor, get back output tensor
@@ -464,13 +470,13 @@ int main(int argc, char* argv[])
     //output_tensor[1] = output_tensor_scores;
     //output_tensor[2] = output_tensor_classes;
     
-    std::vector<const char*> input_names = { "image_shape", "input_1"};
+    //std::vector<const char*> input_names = { "image_shape", "input_1"};
     //std::vector<const char*> input_names = { "input_1", "image_shape"};
     
     gettimeofday(&start_time, nullptr);
-    //CheckStatus(g_ort->Run(session, NULL, input_node_names.data(), input_tensor.data(), 2, output_node_names.data(), 3, output_tensor.data()));
+    CheckStatus(g_ort->Run(session, NULL, input_node_names.data(), input_tensor.data(), 2, output_node_names.data(), 3, output_tensor.data()));
     //CheckStatus(g_ort->Run(session, NULL, input_names.data(), &input_tensor[0], 2, output_node_names.data(), 3, output_tensor));
-    CheckStatus(g_ort->Run(session, NULL, input_names.data(), input_tensor.data(), 2, output_node_names.data(), 3, output_tensor.data()));
+    //CheckStatus(g_ort->Run(session, NULL, input_names.data(), input_tensor.data(), 2, output_node_names.data(), 3, output_tensor.data()));
     
     gettimeofday(&stop_time, nullptr);
     
@@ -489,22 +495,22 @@ int main(int argc, char* argv[])
 
     
     // Get pointer to output tensor float values
-    float* boxs;
+    float* boxs = NULL;
     g_ort->GetTensorMutableData(output_tensor_boxes, (void**)&boxs);
-    for(int i = 10000; boxs[i] != 0; i++){
-        printf(" boxs: %d", i);
+    for(size_t i = 0; i<10000; i++){
+        printf("boxs: %d", i);
         printf(" output: %f\n", boxs[i]);
     }
-    float* scores;
+    float* scores = NULL;
     g_ort->GetTensorMutableData(output_tensor_scores, (void**)&scores);
-    for(int i = 0; scores[i] != 0; i++){
-        printf(" scores: %d", i);
+    for(size_t i = 0; i<40; i++){
+        printf("scores: %d", i);
         printf(" output: %f\n", scores[i]);
     }
-    float* classes;
+    float* classes = NULL;
     g_ort->GetTensorMutableData(output_tensor_classes, (void**)&classes);
-    for(int i = 0; classes[i] != 0; i++){
-        printf(" classes: %d", i);
+    for(size_t i = 0; i<40; i++){
+        printf("classes: %d", i);
         printf(" output: %f\n", classes[i]);
     }
 /*
