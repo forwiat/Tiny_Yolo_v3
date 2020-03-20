@@ -216,8 +216,6 @@ int main(int argc, char* argv[])
     printf("Start Loading Model %s\n", model_name.c_str());
 
     int img_sizex, img_sizey, img_channels;
-//    img_sizex = 416;
-//    img_sizey = 416;
 
     //Postprocessing Variables
     float th_conf = 0.6;
@@ -233,6 +231,9 @@ int main(int argc, char* argv[])
 
     stbi_uc * img_data = stbi_load(input_file, &img_sizex, &img_sizey, &img_channels, STBI_default);
 
+    std::vector<float> input_tensor_values_shape(2);
+    input_tensor_values_shape[0] = img_sizey;
+    input_tensor_values_shape[1] = img_sizex;
 
     /////////////
     int sizex=416, sizey=416;
@@ -406,11 +407,6 @@ int main(int argc, char* argv[])
         }
     }
     
-    std::vector<float> input_tensor_values_shape(2);
-    input_tensor_values_shape[0] = 416;
-    input_tensor_values_shape[1] = 416;
-    
-    
 
     // create input tensor object from data values
     OrtMemoryInfo* memory_info;
@@ -497,19 +493,19 @@ int main(int argc, char* argv[])
     // Get pointer to output tensor float values
     float* boxs = NULL;
     g_ort->GetTensorMutableData(output_tensor_boxes, (void**)&boxs);
-    for(size_t i = 0; i<10000; i++){
+    for(size_t i = 0; i<10; i++){
         printf("boxs: %d", i);
         printf(" output: %f\n", boxs[i]);
     }
     float* scores = NULL;
     g_ort->GetTensorMutableData(output_tensor_scores, (void**)&scores);
-    for(size_t i = 0; i<40; i++){
+    for(size_t i = 0; i<10; i++){
         printf("scores: %d", i);
         printf(" output: %f\n", scores[i]);
     }
     float* classes = NULL;
     g_ort->GetTensorMutableData(output_tensor_classes, (void**)&classes);
-    for(size_t i = 0; i<40; i++){
+    for(size_t i = 0; i<10; i++){
         printf("classes: %d", i);
         printf(" output: %f\n", classes[i]);
     }
