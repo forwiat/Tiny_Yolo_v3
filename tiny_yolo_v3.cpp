@@ -45,7 +45,7 @@ using namespace std;
 std::map<int,std::string> label_file_map;
 char inference_mode = DETECTION;
 int model=0;
-const char* save_filename = "output.jpg";
+char* save_filename = "output.jpg";
 const char* input_file = "yolo004.jpg";
 const char* mat_out = "mat_out.jpg";
 
@@ -58,7 +58,8 @@ double anchors[] = {
     16.62,  10.52
 };
 */
-double anchors[] = {
+/*
+double anchors[] = { //for tinyYolov3
     10,   14,
     23,   27,
     37,   58,
@@ -66,9 +67,21 @@ double anchors[] = {
     135,  169,
     344,  319
 };
-
+*/
 // tinyyolov3: 10,14,  23,27,  37,58,  81,82,  135,169,  344,319
 // yolov3 10,13,  16,30,  33,23,  30,61,  62,45,  59,119,  116,90,  156,198,  373,326
+
+double anchors[] = { //for Yolov3
+    116,90,
+    156,198,
+    373,326,
+    30,61,
+    62,45,
+    59,119,
+    10,13,
+    16,30,
+    33,23
+};
 
 const OrtApi* g_ort = OrtGetApiBase()->GetApi(ORT_API_VERSION);
 
@@ -136,16 +149,16 @@ void softmax(float val[]){
     float max = -INT_MAX;
     float sum = 0;
 
-    for (int i = 0;i<20;i++){
+    for (int i = 0;i<80;i++){
         max = std::max(max, val[i]);
     }
 
-    for (int i = 0;i<20;i++){
+    for (int i = 0;i<80;i++){
         val[i]= (float) exp(val[i]-max);
         sum+= val[i];
     }
 
-    for (int i = 0;i<20;i++){
+    for (int i = 0;i<80;i++){
         val[i]= val[i]/sum;
     }
 
@@ -204,23 +217,23 @@ void print_box(detection d, int i){
     printf("Score           : %.1f %%\n", d.prob * d.conf*100);
 }
 
-
 int main(int argc, char* argv[])
 {
     //Config : inference mode
     inference_mode = DETECTION;
     //Config : model
     std::string model_name = "yolov3-tiny.onnx";
-    std::string model_path= "yolov3-tiny/yolov3-tiny.onnx";
+    //std::string model_path= "yolov3-tiny/yolov3-tiny.onnx";
+    std::string model_path= "yolov3-tiny/yolov3.onnx";
     
     printf("Start Loading Model %s\n", model_name.c_str());
 
     int img_sizex, img_sizey, img_channels;
 
     //Postprocessing Variables
-    float th_conf = 0.6;
+    float th_conf = 0.5;
     float th_prob = 0.5;
-    int count         = 0;
+    int count = 0;
     std::vector<detection> det;
 
     //Timing Variables
@@ -491,122 +504,365 @@ int main(int argc, char* argv[])
 
     
     // Get pointer to output tensor float values
-    float* boxs = NULL;
-    g_ort->GetTensorMutableData(output_tensor_boxes, (void**)&boxs);
+    float* out1 = NULL;
+    g_ort->GetTensorMutableData(output_tensor_boxes, (void**)&out1);
     for(size_t i = 0; i<10; i++){
-        printf("boxs: %d", i);
-        printf(" output: %f\n", boxs[i]);
+        printf("out1: %d", i);
+        printf(" output: %f\n", out1[i]);
     }
-    float* scores = NULL;
-    g_ort->GetTensorMutableData(output_tensor_scores, (void**)&scores);
+    float* out2 = NULL;
+    g_ort->GetTensorMutableData(output_tensor_scores, (void**)&out2);
     for(size_t i = 0; i<10; i++){
-        printf("scores: %d", i);
-        printf(" output: %f\n", scores[i]);
+        printf("out2: %d", i);
+        printf(" output: %f\n", out2[i]);
     }
-    float* classes = NULL;
-    g_ort->GetTensorMutableData(output_tensor_classes, (void**)&classes);
+    float* out3 = NULL;
+    g_ort->GetTensorMutableData(output_tensor_classes, (void**)&out3);
     for(size_t i = 0; i<10; i++){
-        printf("classes: %d", i);
-        printf(" output: %f\n", classes[i]);
+        printf("out3: %d", i);
+        printf(" output: %f\n", out3[i]);
     }
-/*
-        if(loadLabelFile(filename) != 0)
+    
+    
+    if(loadLabelFile(filename) != 0)
+    {
+        fprintf(stderr,"Fail to open or process file %s\n",filename.c_str());
+        delete imge;
+        return -1;
+    }
+    
+    int grid_h1=13, grid_w1=13, grid_h2=26, grid_w2=26, grid_h3=52, grid_w3=52, nb_box = 3;
+    int nb_class = label_file_map.size();
+    
+    
+    //[(1, 13, 13, 255), (1, 26, 26, 255), (1, 52, 52, 255)]
+    
+    float output1[13][13][3][85];
+    float output2[26][26][3][85];
+    float output3[52][52][3][85];
+    /*
+    offs = 0; 
+    for(size_t x = 0; x < 13; x++)
+    {
+        for(size_t y = 0; y < 13; y++)
         {
-            fprintf(stderr,"Fail to open or process file %s\n",filename.c_str());
-            delete imge;
-            return -1;
+            for(size_t z = 0; z < 3; z++)
+            {
+                for(size_t t = 0; t < 85; t++,offs++)
+                {
+                    output1[x][y][z][t] = out1[offs];
+                }
+            }
         }
-
-        //Postprocessing
-
-        gettimeofday(&start_time, nullptr); //Start postproc timer
-
-        CheckStatus(g_ort->IsTensor(output_tensor,&is_tensor));
-        assert(is_tensor);
-        //assert(g_ort->IsTensor(output_tensor));
-        int b;
-
-        for(b = 0;b<YOLO_NUM_BB;b++){
-            for(y = 0;y<YOLO_GRID_Y;y++){
-                for(x = 0;x<YOLO_GRID_X;x++){
-                    int offs = offset_(b, y, x);
-                    double tc = floatarr[offset(offs, 4)];
-                    double conf = sigmoid(tc);
-
-                    if (conf > th_conf){
-                        float tx = floatarr[offs];
-                        float ty = floatarr[offset(offs, 1)];
-                        float tw = floatarr[offset(offs, 2)];
-                        float th = floatarr[offset(offs, 3)];
-
-                        float xPos = ((float) x + sigmoid(tx))*32;
-                        float yPos = ((float) y + sigmoid(ty))*32;
-                        float wBox = (float) exp(tw)*anchors[2*b+0]*32;
-                        float hBox = (float) exp(th)*anchors[2*b+1]*32;
-
-                        Box bb = float_to_box(xPos, yPos, wBox, hBox);
-
-                        float classes[20];
-                        for (int c = 0;c<20;c++){
-                            classes[c] = floatarr[offset(offs, 5+c)];
-                        }
-                        softmax(classes);
-                        float max_pd = 0;
-                        int detected = -1;
-                        for (int c = 0;c<20;c++){
-                            if (classes[c]>max_pd){
-                                detected = c;
-                                max_pd = classes[c];
-                            }
-                        }
-                        float score = max_pd * conf;
-                        if (score>th_prob){
-                            detection d = { bb, conf , detected,max_pd };
-                            det.push_back(d);
-                            count++;
-                        }
+    }
+    offs = 0; 
+    for(size_t x = 0; x < 26; x++)
+    {
+        for(size_t y = 0; y < 26; y++)
+        {
+            for(size_t z = 0; z < 3; z++)
+            {
+                for(size_t t = 0; t < 85; t++,offs++)
+                {
+                    output2[x][y][z][t] = out2[offs];
+                }
+            }
+        }
+    }
+    offs = 0; 
+    for(size_t x = 0; x < 52; x++)
+    {
+        for(size_t y = 0; y < 52; y++)
+        {
+            for(size_t z = 0; z < 3; z++)
+            {
+                for(size_t t = 0; t < 85; t++,offs++)
+                {
+                    output3[x][y][z][t] = out3[offs];
+                }
+            }
+        }
+    }
+    
+    
+    
+    
+    for(size_t x = 0; x < grid_w1; x++)
+    {
+        for(size_t y = 0; y < grid_h1; y++)
+        {
+            for(size_t z = 0; z < nb_box; z++)
+            {
+                for(size_t t = 0; t < 2; t++)
+                {
+                    output1[x][y][z][t] = sigmoid(output1[x][y][z][t]);
+                }
+                for(size_t t = 4; t < 85; t++)
+                {
+                    output1[x][y][z][t] = sigmoid(output1[x][y][z][t]);
+                }
+                for(size_t t = 5; t < 85; t++)
+                {
+                    output1[x][y][z][t] = output1[x][y][z][4] * output1[x][y][z][t];
+                    if(output1[x][y][z][t] <= th_conf)
+                    {
+                        output1[x][y][z][t] = 0;
                     }
                 }
             }
         }
-
-        //NMS filter
-        filter_boxes_nms(det, count, 0.6);
-
-        int i, j=0;
-        //Render boxes on image and print their details
-        for (i =0;i<count;i++){
-            if (det[i].prob == 0) continue;
-            j++;
-            print_box(det[i], j);
-            std::stringstream stream;
-            stream << std::fixed << std::setprecision(2) << det[i].conf*det[i].prob;
-            std::string result_str = label_file_map[det[i].c]+ " "+ stream.str();
-        imge->drawRect((int)det[i].bbox.x, (int)det[i].bbox.y, (int)det[i].bbox.w, (int)det[i].bbox.h, (int)det[i].c, result_str.c_str());
+    }
+    
+    for(size_t x = 0; x < grid_w2; x++)
+    {
+        for(size_t y = 0; y < grid_h2; y++)
+        {
+            for(size_t z = 0; z < nb_box; z++)
+            {
+                for(size_t t = 0; t < 2; t++)
+                {
+                    output2[x][y][z][t] = sigmoid(output2[x][y][z][t]);
+                }
+                for(size_t t = 4; t < 85; t++)
+                {
+                    output2[x][y][z][t] = sigmoid(output2[x][y][z][t]);
+                }
+                for(size_t t = 5; t < 85; t++)
+                {
+                    output2[x][y][z][t] = output2[x][y][z][4] * output2[x][y][z][t];
+                    if(output2[x][y][z][t] <= th_conf)
+                    {
+                        output2[x][y][z][t] = 0;
+                    }
+                }
+            }
         }
-        gettimeofday(&stop_time, nullptr);//Stop postproc timer
-        size_t time_post = timedifference_msec(start_time,stop_time);
-        printf("Postprocessing Time: %.3f msec\n", time_post);
+    }
+    
+    for(size_t x = 0; x < grid_w3; x++)
+    {
+        for(size_t y = 0; y < grid_h3; y++)
+        {
+            for(size_t z = 0; z < nb_box; z++)
+            {
+                for(size_t t = 0; t < 2; t++)
+                {
+                    output3[x][y][z][t] = sigmoid(output3[x][y][z][t]);
+                }
+                for(size_t t = 4; t < 85; t++)
+                {
+                    output3[x][y][z][t] = sigmoid(output3[x][y][z][t]);
+                }
+                for(size_t t = 5; t < 85; t++)
+                {
+                    output3[x][y][z][t] = output3[x][y][z][4] * output3[x][y][z][t];
+                    if(output3[x][y][z][t] <= th_conf)
+                    {
+                        output3[x][y][z][t] = 0;
+                    }
+                }
+            }
+        }
+    }
+    */
+    
+    float temp1[13*13*3*85];
+    float temp2[26*26*3*85];
+    float temp3[52*52*3*85];
+    char* data_file1 = "data_13x13.txt";
+    char* data_file2 = "data_26x26.txt";
+    char* data_file3 = "data_52x52.txt";
+    int n = 0;
+    
+    FILE *fp;
+    fp = fopen(data_file1, "r");
+    while (fscanf(fp, "%f", &temp1[n++]) != EOF){}
+    n=0;
+    for(size_t x = 0; x < 13; x++)
+    {
+        for(size_t y = 0; y < 13; y++)
+        {
+            for(size_t z = 0; z < 3; z++)
+            {
+                for(size_t t = 0; t < 85; t++,n++)
+                {
+                    output1[x][y][z][t] = temp1[n];
+                }
+                for(size_t t = 0; t < 2; t++)
+                {
+                    output1[x][y][z][t] = sigmoid(output1[x][y][z][t]);
+                }
+                for(size_t t = 4; t < 85; t++)
+                {
+                    output1[x][y][z][t] = sigmoid(output1[x][y][z][t]);
+                }
+                for(size_t t = 5; t < 85; t++)
+                {
+                    output1[x][y][z][t] = output1[x][y][z][4] * output1[x][y][z][t];
+                    if(output1[x][y][z][t] <= th_conf)
+                    {
+                        output1[x][y][z][t] = 0;
+                    }
+                }
+            }
+        }
+    }
+    fclose(fp);
+    n=0;
+    fp = fopen(data_file2, "r");
+    while (fscanf(fp, "%f", &temp2[n++]) != EOF){}
+    n=0;
+    for(size_t x = 0; x < 26; x++)
+    {
+        for(size_t y = 0; y < 26; y++)
+        {
+            for(size_t z = 0; z < 3; z++)
+            {
+                for(size_t t = 0; t < 85; t++,n++)
+                {
+                    output2[x][y][z][t] = temp2[n];
+                }
+                for(size_t t = 0; t < 2; t++)
+                {
+                    output2[x][y][z][t] = sigmoid(output2[x][y][z][t]);
+                }
+                for(size_t t = 4; t < 85; t++)
+                {
+                    output2[x][y][z][t] = sigmoid(output2[x][y][z][t]);
+                }
+                for(size_t t = 5; t < 85; t++)
+                {
+                    output2[x][y][z][t] = output2[x][y][z][4] * output2[x][y][z][t];
+                    if(output2[x][y][z][t] <= th_conf)
+                    {
+                        output2[x][y][z][t] = 0;
+                    }
+                }
+            }
+        }
+    }
+    fclose(fp);
+    n=0;
+    fp = fopen(data_file3, "r");
+    while (fscanf(fp, "%f", &temp3[n++]) != EOF){}
+    n=0;
+    for(size_t x = 0; x < 52; x++)
+    {
+        for(size_t y = 0; y < 52; y++)
+        {
+            for(size_t z = 0; z < 3; z++)
+            {
+                for(size_t t = 0; t < 85; t++,n++)
+                {
+                    output3[x][y][z][t] = temp3[n];
+                }
+                //for(size_t t = 0; t < 2; t++)
+                for(size_t t = 0; t < 4; t++)
+                {
+                    output3[x][y][z][t] = sigmoid(output3[x][y][z][t]);
+                }
+                for(size_t t = 4; t < 85; t++)
+                {
+                    output3[x][y][z][t] = sigmoid(output3[x][y][z][t]);
+                }
+                for(size_t t = 5; t < 85; t++)
+                {
+                    output3[x][y][z][t] = output3[x][y][z][4] * output3[x][y][z][t];
+                    if(output3[x][y][z][t] <= th_conf)
+                    {
+                        output3[x][y][z][t] = 0;
+                    }
+                }
+            }
+        }
+    }
+    fclose(fp);
+    
+    
+    for(int i = 0; i < grid_w1*grid_h1; i++)
+    {
+        float row = (float)i / (float)grid_w1;
+        float col = i % grid_w1;
+        for(int b = 0; b < nb_box; b++)
+        {
+            float objectness = output1[int(row)][int(col)][b][4];
+            if(objectness > th_conf)
+            {
+                float x, y, w, h;
+                x = output1[int(row)][int(col)][b][0];
+                y = output1[int(row)][int(col)][b][1];
+                w = output1[int(row)][int(col)][b][2];
+                h = output1[int(row)][int(col)][b][3];
+                
+                float xPos = (col + x)*32;
+                float yPos = (row + y)*32;/
+                float wBox = anchors[2 * b + 0] * exp(w);
+                float hBox = anchors[2 * b + 1] * exp(h);
+                
+                
+                Box bb = float_to_box(xPos, yPos, wBox, hBox);
+                
+                float classes[80];
+                for (int c = 0;c<80;c++){
+                    classes[c] = output1[int(row)][int(col)][b][c+5];
+                }
+                float max_pd = 0;
+                int detected = -1;
+                for (int c = 0;c<80;c++){
+                    if (classes[c]>max_pd){
+                        detected = c;
+                        max_pd = classes[c];
+                    }
+                }
+                float score = max_pd;
+                if (score>th_prob){
+                    detection d = { bb, objectness , detected,max_pd };
+                    det.push_back(d);
+                    count++;
+                }
+            }
+        }
+    }
+    
+    //correct_yolo_boxes
+    filter_boxes_nms(det, count, 0.6);
+    
+    int i, j=0;
+    //Render boxes on image and print their details
+    for(i =0;i<count;i++){
+        if(det[i].prob == 0) continue;
+        j++;
+        print_box(det[i], j);
+        std::stringstream stream;
+        stream << std::fixed << std::setprecision(2) << det[i].conf*det[i].prob;
+        std::string result_str = label_file_map[det[i].c]+ " "+ stream.str();
+        imge->drawRect((int)det[i].bbox.x, (int)det[i].bbox.y, (int)det[i].bbox.w, (int)det[i].bbox.h, (int)det[i].c, result_str.c_str());
+    }
+    gettimeofday(&stop_time, nullptr);//Stop postproc timer
+    size_t time_post = timedifference_msec(start_time,stop_time);
+    printf("Postprocessing Time: %.3f msec\n", time_post);
 
-        //Save Image
-        imge->save(save_filename);
+    //Save Image
+    imge->save(save_filename);
 
-        g_ort->ReleaseValue(output_tensor);
-        g_ort->ReleaseValue(input_tensor);
-        printf("\x1b[36;1m");
-        printf("Prediction Time: %.3f msec\n\n", diff);
-        printf("\x1b[0m");
-*/
+    g_ort->ReleaseValue(input_tensor_image);
+    g_ort->ReleaseValue(input_tensor_shape);
+    g_ort->ReleaseValue(output_tensor_boxes);
+    g_ort->ReleaseValue(output_tensor_scores);
+    g_ort->ReleaseValue(output_tensor_classes);
+    
+    
+    printf("\x1b[36;1m");
+    printf("Prediction Time: %.3f msec\n\n", diff);
+    printf("\x1b[0m");
 
-        delete imge;
+    delete imge;
+    g_ort->ReleaseSession(session);
+    g_ort->ReleaseSessionOptions(session_options);
+    g_ort->ReleaseEnv(env);
 
 
-  g_ort->ReleaseSession(session);
-  g_ort->ReleaseSessionOptions(session_options);
-  g_ort->ReleaseEnv(env);
+    printf("Done!\n");
 
-
-  printf("Done!\n");
-
-  return 0;
+    return 0;
 }
