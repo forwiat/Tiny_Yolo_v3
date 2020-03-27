@@ -83,6 +83,8 @@ double anchors[] = { //for Yolov3
     33,23
 };
 
+
+
 const OrtApi* g_ort = OrtGetApiBase()->GetApi(ORT_API_VERSION);
 
 
@@ -217,6 +219,58 @@ void print_box(detection d, int i){
     printf("Score           : %.1f %%\n", d.prob * d.conf*100);
 }
 
+
+
+/*
+void process_output(float output[13][13][3][85], int grid_w, int grid_h, int anchor, int* count)
+{
+    for(int i = 0; i < grid_w*grid_h; i++)
+    {
+        float row = (float)i / (float)grid_w;
+        float col = i % grid_w;
+        for(int b = 0; b < 3; b++)
+        {
+            float objectness = output[int(row)][int(col)][b][4];
+            if(objectness > th_conf)
+            {
+                float x, y, w, h;
+                x = output[int(row)][int(col)][b][0];
+                y = output[int(row)][int(col)][b][1];
+                w = output[int(row)][int(col)][b][2];
+                h = output[int(row)][int(col)][b][3];
+                
+                float xPos = (col + x)*32;
+                float yPos = (row + y)*32;
+                float wBox = anchors[anchor * b + 0] * exp(w);
+                float hBox = anchors[anchor * b + 1] * exp(h);
+                
+                Box bb = float_to_box(xPos, yPos, wBox, hBox);
+                
+                float classes[80];
+                for (int c = 0;c<80;c++){
+                    classes[c] = output[int(row)][int(col)][b][c+5];
+                }
+                float max_pd = 0;
+                int detected = -1;
+                for (int c = 0;c<80;c++){
+                    if (classes[c]>max_pd){
+                        detected = c;
+                        max_pd = classes[c];
+                    }
+                }
+                float score = max_pd;
+                if (score>th_prob){
+                    detection d = { bb, objectness , detected,max_pd };
+                    det.push_back(d);
+                    (*count)++;
+                }
+            }
+        }
+    }
+}
+*/
+
+
 int main(int argc, char* argv[])
 {
     //Config : inference mode
@@ -231,9 +285,9 @@ int main(int argc, char* argv[])
     int img_sizex, img_sizey, img_channels;
 
     //Postprocessing Variables
+    int count = 0;
     float th_conf = 0.5;
     float th_prob = 0.5;
-    int count = 0;
     std::vector<detection> det;
 
     //Timing Variables
@@ -431,39 +485,39 @@ int main(int argc, char* argv[])
     input_node_dims.push_back(input_node_dims_shape);
     
     
-    //std::vector<OrtValue* > input_tensor(input_node_names.size());
+    std::vector<OrtValue* > input_tensor(input_node_names.size());
     OrtValue* input_tensor_image = NULL;
     OrtValue* input_tensor_shape = NULL;
     //OrtValue* input_tensor[2] = {nullptr};
     
-    CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values.data(), input_tensor_size*sizeof(float), input_node_dims_input.data(), 4, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor_image));
-    CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values_shape.data(), 2*sizeof(float), input_node_dims_shape.data(), 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor_shape));
-    //CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values.data(), input_tensor_size*sizeof(float), input_node_dims_input.data(), 4, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor[0]));
-    //CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values_shape.data(), 2*sizeof(float), input_node_dims_shape.data(), 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor[1]));
+    //CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values.data(), input_tensor_size*sizeof(float), input_node_dims_input.data(), 4, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor_image));
+    //CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values_shape.data(), 2*sizeof(float), input_node_dims_shape.data(), 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor_shape));
+    CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values.data(), input_tensor_size*sizeof(float), input_node_dims_input.data(), 4, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor[0]));
+    CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values_shape.data(), 2*sizeof(float), input_node_dims_shape.data(), 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor[1]));
 
     
     int is_tensor;
-    CheckStatus(g_ort->IsTensor(input_tensor_image,&is_tensor));
+    //CheckStatus(g_ort->IsTensor(input_tensor_image,&is_tensor));
+    CheckStatus(g_ort->IsTensor(input_tensor[0],&is_tensor));
     assert(is_tensor);
-    CheckStatus(g_ort->IsTensor(input_tensor_shape,&is_tensor));
+    //CheckStatus(g_ort->IsTensor(input_tensor_shape,&is_tensor));
+    CheckStatus(g_ort->IsTensor(input_tensor[1],&is_tensor));
     assert(is_tensor);
     g_ort->ReleaseMemoryInfo(memory_info);
     
     
     
-    std::vector<const OrtValue*> input_tensor(2);
+    //std::vector<const OrtValue*> input_tensor(2);
     //input_tensor.push_back((const OrtValue* )input_tensor_image);
     //input_tensor.push_back((const OrtValue* )input_tensor_shape);
     
     
-    input_tensor[0] = input_tensor_image;
-    input_tensor[1] = input_tensor_shape;
+    //input_tensor[0] = input_tensor_image;
+    //input_tensor[1] = input_tensor_shape;
     
-    CheckStatus(g_ort->IsTensor(input_tensor[0],&is_tensor));
-    assert(is_tensor);
     
-    printf("input_tensor_image %zu \n", input_tensor_image);
-    printf("input_tensor_shape %zu \n", input_tensor_shape);
+    //printf("input_tensor_image %zu \n", input_tensor_image);
+    //printf("input_tensor_shape %zu \n", input_tensor_shape);
     printf("input_tensor %zu \n", input_tensor.data());
     printf("input_tensor[0] %zu \n", input_tensor[0]);
     printf("input_tensor[1] %zu \n", input_tensor[1]);
@@ -505,19 +559,22 @@ int main(int argc, char* argv[])
     
     // Get pointer to output tensor float values
     float* out1 = NULL;
-    g_ort->GetTensorMutableData(output_tensor_boxes, (void**)&out1);
+    //g_ort->GetTensorMutableData(output_tensor_boxes, (void**)&out1);
+    g_ort->GetTensorMutableData(output_tensor[0], (void**)&out1);
     for(size_t i = 0; i<10; i++){
         printf("out1: %d", i);
         printf(" output: %f\n", out1[i]);
     }
     float* out2 = NULL;
-    g_ort->GetTensorMutableData(output_tensor_scores, (void**)&out2);
+    //g_ort->GetTensorMutableData(output_tensor_scores, (void**)&out2);
+    g_ort->GetTensorMutableData(output_tensor[1], (void**)&out2);
     for(size_t i = 0; i<10; i++){
         printf("out2: %d", i);
         printf(" output: %f\n", out2[i]);
     }
     float* out3 = NULL;
-    g_ort->GetTensorMutableData(output_tensor_classes, (void**)&out3);
+    //g_ort->GetTensorMutableData(output_tensor_classes, (void**)&out3);
+    g_ort->GetTensorMutableData(output_tensor[2], (void**)&out3);
     for(size_t i = 0; i<10; i++){
         printf("out3: %d", i);
         printf(" output: %f\n", out3[i]);
@@ -540,59 +597,19 @@ int main(int argc, char* argv[])
     float output1[13][13][3][85];
     float output2[26][26][3][85];
     float output3[52][52][3][85];
+    
     /*
-    offs = 0; 
-    for(size_t x = 0; x < 13; x++)
-    {
-        for(size_t y = 0; y < 13; y++)
-        {
-            for(size_t z = 0; z < 3; z++)
-            {
-                for(size_t t = 0; t < 85; t++,offs++)
-                {
-                    output1[x][y][z][t] = out1[offs];
-                }
-            }
-        }
-    }
-    offs = 0; 
-    for(size_t x = 0; x < 26; x++)
-    {
-        for(size_t y = 0; y < 26; y++)
-        {
-            for(size_t z = 0; z < 3; z++)
-            {
-                for(size_t t = 0; t < 85; t++,offs++)
-                {
-                    output2[x][y][z][t] = out2[offs];
-                }
-            }
-        }
-    }
-    offs = 0; 
-    for(size_t x = 0; x < 52; x++)
-    {
-        for(size_t y = 0; y < 52; y++)
-        {
-            for(size_t z = 0; z < 3; z++)
-            {
-                for(size_t t = 0; t < 85; t++,offs++)
-                {
-                    output3[x][y][z][t] = out3[offs];
-                }
-            }
-        }
-    }
-    
-    
-    
-    
+    offs = 0;
     for(size_t x = 0; x < grid_w1; x++)
     {
         for(size_t y = 0; y < grid_h1; y++)
         {
             for(size_t z = 0; z < nb_box; z++)
             {
+                for(size_t t = 0; t < 85; t++,offs++)
+                {
+                    output1[x][y][z][t] = out1[offs];
+                }
                 for(size_t t = 0; t < 2; t++)
                 {
                     output1[x][y][z][t] = sigmoid(output1[x][y][z][t]);
@@ -613,12 +630,17 @@ int main(int argc, char* argv[])
         }
     }
     
+    offs = 0;
     for(size_t x = 0; x < grid_w2; x++)
     {
         for(size_t y = 0; y < grid_h2; y++)
         {
             for(size_t z = 0; z < nb_box; z++)
             {
+                for(size_t t = 0; t < 85; t++,offs++)
+                {
+                    output2[x][y][z][t] = out2[offs];
+                }
                 for(size_t t = 0; t < 2; t++)
                 {
                     output2[x][y][z][t] = sigmoid(output2[x][y][z][t]);
@@ -639,12 +661,17 @@ int main(int argc, char* argv[])
         }
     }
     
+    offs = 0;
     for(size_t x = 0; x < grid_w3; x++)
     {
         for(size_t y = 0; y < grid_h3; y++)
         {
             for(size_t z = 0; z < nb_box; z++)
             {
+                for(size_t t = 0; t < 85; t++,offs++)
+                {
+                    output3[x][y][z][t] = out3[offs];
+                }
                 for(size_t t = 0; t < 2; t++)
                 {
                     output3[x][y][z][t] = sigmoid(output3[x][y][z][t]);
@@ -665,6 +692,7 @@ int main(int argc, char* argv[])
         }
     }
     */
+    
     
     float temp1[13*13*3*85];
     float temp2[26*26*3*85];
@@ -779,6 +807,9 @@ int main(int argc, char* argv[])
     fclose(fp);
     
     
+    //process_output(output1, grid_w1, grid_h1, 2, &count);
+    
+    
     for(int i = 0; i < grid_w1*grid_h1; i++)
     {
         float row = (float)i / (float)grid_w1;
@@ -795,7 +826,7 @@ int main(int argc, char* argv[])
                 h = output1[int(row)][int(col)][b][3];
                 
                 float xPos = (col + x)*32;
-                float yPos = (row + y)*32;/
+                float yPos = (row + y)*32;
                 float wBox = anchors[2 * b + 0] * exp(w);
                 float hBox = anchors[2 * b + 1] * exp(h);
                 
@@ -823,6 +854,100 @@ int main(int argc, char* argv[])
             }
         }
     }
+    
+
+    
+    
+    for(int i = 0; i < grid_w2*grid_h2; i++)
+    {
+        float row = (float)i / (float)grid_w2;
+        float col = i % grid_w2;
+        for(int b = 0; b < nb_box; b++)
+        {
+            float objectness = output2[int(row)][int(col)][b][4];
+            if(objectness > th_conf)
+            {
+                float x, y, w, h;
+                x = output2[int(row)][int(col)][b][0];
+                y = output2[int(row)][int(col)][b][1];
+                w = output2[int(row)][int(col)][b][2];
+                h = output2[int(row)][int(col)][b][3];
+                
+                float xPos = (col + x)*32;
+                float yPos = (row + y)*32;
+                float wBox = anchors[6 + 2*b + 0] * exp(w);
+                float hBox = anchors[6 + 2*b + 1] * exp(h);
+                
+                
+                Box bb = float_to_box(xPos, yPos, wBox, hBox);
+                
+                float classes[80];
+                for (int c = 0;c<80;c++){
+                    classes[c] = output2[int(row)][int(col)][b][c+5];
+                }
+                float max_pd = 0;
+                int detected = -1;
+                for (int c = 0;c<80;c++){
+                    if (classes[c]>max_pd){
+                        detected = c;
+                        max_pd = classes[c];
+                    }
+                }
+                float score = max_pd;
+                if (score>th_prob){
+                    detection d = { bb, objectness , detected,max_pd };
+                    det.push_back(d);
+                    count++;
+                }
+            }
+        }
+    }
+    
+    for(int i = 0; i < grid_w3*grid_h3; i++)
+    {
+        float row = (float)i / (float)grid_w3;
+        float col = i % grid_w3;
+        for(int b = 0; b < nb_box; b++)
+        {
+            float objectness = output3[int(row)][int(col)][b][4];
+            if(objectness > th_conf)
+            {
+                float x, y, w, h;
+                x = output3[int(row)][int(col)][b][0];
+                y = output3[int(row)][int(col)][b][1];
+                w = output3[int(row)][int(col)][b][2];
+                h = output3[int(row)][int(col)][b][3];
+                
+                float xPos = (col + x)*32;
+                float yPos = (row + y)*32;
+                float wBox = anchors[12 + 2*b + 0] * exp(w);
+                float hBox = anchors[12 +2*b + 1] * exp(h);
+                
+                
+                Box bb = float_to_box(xPos, yPos, wBox, hBox);
+                
+                float classes[80];
+                for (int c = 0;c<80;c++){
+                    classes[c] = output3[int(row)][int(col)][b][c+5];
+                }
+                float max_pd = 0;
+                int detected = -1;
+                for (int c = 0;c<80;c++){
+                    if (classes[c]>max_pd){
+                        detected = c;
+                        max_pd = classes[c];
+                    }
+                }
+                float score = max_pd;
+                if (score>th_prob){
+                    detection d = { bb, objectness , detected,max_pd };
+                    det.push_back(d);
+                    count++;
+                }
+            }
+        }
+    }
+    
     
     //correct_yolo_boxes
     filter_boxes_nms(det, count, 0.6);
