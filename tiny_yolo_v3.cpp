@@ -809,7 +809,6 @@ int main(int argc, char* argv[])
     
     //process_output(output1, grid_w1, grid_h1, 2, &count);
     
-    
     for(int i = 0; i < grid_w1*grid_h1; i++)
     {
         float row = (float)i / (float)grid_w1;
@@ -855,7 +854,6 @@ int main(int argc, char* argv[])
         }
     }
     
-
     
     
     for(int i = 0; i < grid_w2*grid_h2; i++)
@@ -873,8 +871,8 @@ int main(int argc, char* argv[])
                 w = output2[int(row)][int(col)][b][2];
                 h = output2[int(row)][int(col)][b][3];
                 
-                float xPos = (col + x)*32;
-                float yPos = (row + y)*32;
+                float xPos = (col + x)*16;
+                float yPos = (row + y)*16;
                 float wBox = anchors[6 + 2*b + 0] * exp(w);
                 float hBox = anchors[6 + 2*b + 1] * exp(h);
                 
@@ -918,8 +916,8 @@ int main(int argc, char* argv[])
                 w = output3[int(row)][int(col)][b][2];
                 h = output3[int(row)][int(col)][b][3];
                 
-                float xPos = (col + x)*32;
-                float yPos = (row + y)*32;
+                float xPos = (col + x)*8;
+                float yPos = (row + y)*8;
                 float wBox = anchors[12 + 2*b + 0] * exp(w);
                 float hBox = anchors[12 +2*b + 1] * exp(h);
                 
