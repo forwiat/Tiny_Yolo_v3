@@ -319,7 +319,7 @@ int main(int argc, char* argv[])
     cv::resize(img, img_resize, cv::Size(img_sizex_new,img_sizey_new));
     cv::Mat new_image(sizex,sizey, CV_8UC3, Scalar(128,128,128));
 
-    img_resize.copyTo(new_image(cv::Rect(0,0,img_resize.cols, img_resize.rows)));
+    img_resize.copyTo(new_image(cv::Rect((sizex - img_resize.cols)/2,(sizey - img_resize.rows)/2,img_resize.cols, img_resize.rows)));
     cv::imwrite(mat_out, new_image);
     printf("cols: %d\n",new_image.cols);
     printf("rows: %d\n",new_image.rows);
@@ -529,9 +529,9 @@ int main(int argc, char* argv[])
     OrtValue* output_tensor_boxes = NULL;
     OrtValue* output_tensor_scores = NULL;
     OrtValue* output_tensor_classes = NULL;
-    //output_tensor[0] = output_tensor_boxes;
-    //output_tensor[1] = output_tensor_scores;
-    //output_tensor[2] = output_tensor_classes;
+    output_tensor[0] = NULL;
+    output_tensor[1] = NULL;
+    output_tensor[2] = NULL;
     
     //std::vector<const char*> input_names = { "image_shape", "input_1"};
     //std::vector<const char*> input_names = { "input_1", "image_shape"};
@@ -559,22 +559,22 @@ int main(int argc, char* argv[])
     
     // Get pointer to output tensor float values
     float* out1 = NULL;
-    //g_ort->GetTensorMutableData(output_tensor_boxes, (void**)&out1);
-    g_ort->GetTensorMutableData(output_tensor[0], (void**)&out1);
+    g_ort->GetTensorMutableData(output_tensor_boxes, (void**)&out1);
+    //g_ort->GetTensorMutableData(output_tensor[0], (void**)&out1);
     for(size_t i = 0; i<10; i++){
         printf("out1: %d", i);
         printf(" output: %f\n", out1[i]);
     }
     float* out2 = NULL;
-    //g_ort->GetTensorMutableData(output_tensor_scores, (void**)&out2);
-    g_ort->GetTensorMutableData(output_tensor[1], (void**)&out2);
+    g_ort->GetTensorMutableData(output_tensor_scores, (void**)&out2);
+    //g_ort->GetTensorMutableData(output_tensor[1], (void**)&out2);
     for(size_t i = 0; i<10; i++){
         printf("out2: %d", i);
         printf(" output: %f\n", out2[i]);
     }
     float* out3 = NULL;
-    //g_ort->GetTensorMutableData(output_tensor_classes, (void**)&out3);
-    g_ort->GetTensorMutableData(output_tensor[2], (void**)&out3);
+    g_ort->GetTensorMutableData(output_tensor_classes, (void**)&out3);
+    //g_ort->GetTensorMutableData(output_tensor[2], (void**)&out3);
     for(size_t i = 0; i<10; i++){
         printf("out3: %d", i);
         printf(" output: %f\n", out3[i]);
@@ -853,7 +853,6 @@ int main(int argc, char* argv[])
             }
         }
     }
-    
     
     
     for(int i = 0; i < grid_w2*grid_h2; i++)
