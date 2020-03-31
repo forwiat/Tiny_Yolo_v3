@@ -598,7 +598,6 @@ int main(int argc, char* argv[])
     float output2[26][26][3][85];
     float output3[52][52][3][85];
     
-    /*
     offs = 0;
     for(size_t x = 0; x < grid_w1; x++)
     {
@@ -691,122 +690,6 @@ int main(int argc, char* argv[])
             }
         }
     }
-    */
-    
-    
-    float temp1[13*13*3*85];
-    float temp2[26*26*3*85];
-    float temp3[52*52*3*85];
-    char* data_file1 = "data_13x13.txt";
-    char* data_file2 = "data_26x26.txt";
-    char* data_file3 = "data_52x52.txt";
-    int n = 0;
-    
-    FILE *fp;
-    fp = fopen(data_file1, "r");
-    while (fscanf(fp, "%f", &temp1[n++]) != EOF){}
-    n=0;
-    for(size_t x = 0; x < 13; x++)
-    {
-        for(size_t y = 0; y < 13; y++)
-        {
-            for(size_t z = 0; z < 3; z++)
-            {
-                for(size_t t = 0; t < 85; t++,n++)
-                {
-                    output1[x][y][z][t] = temp1[n];
-                }
-                for(size_t t = 0; t < 2; t++)
-                {
-                    output1[x][y][z][t] = sigmoid(output1[x][y][z][t]);
-                }
-                for(size_t t = 4; t < 85; t++)
-                {
-                    output1[x][y][z][t] = sigmoid(output1[x][y][z][t]);
-                }
-                for(size_t t = 5; t < 85; t++)
-                {
-                    output1[x][y][z][t] = output1[x][y][z][4] * output1[x][y][z][t];
-                    if(output1[x][y][z][t] <= th_conf)
-                    {
-                        output1[x][y][z][t] = 0;
-                    }
-                }
-            }
-        }
-    }
-    fclose(fp);
-    n=0;
-    fp = fopen(data_file2, "r");
-    while (fscanf(fp, "%f", &temp2[n++]) != EOF){}
-    n=0;
-    for(size_t x = 0; x < 26; x++)
-    {
-        for(size_t y = 0; y < 26; y++)
-        {
-            for(size_t z = 0; z < 3; z++)
-            {
-                for(size_t t = 0; t < 85; t++,n++)
-                {
-                    output2[x][y][z][t] = temp2[n];
-                }
-                for(size_t t = 0; t < 2; t++)
-                {
-                    output2[x][y][z][t] = sigmoid(output2[x][y][z][t]);
-                }
-                for(size_t t = 4; t < 85; t++)
-                {
-                    output2[x][y][z][t] = sigmoid(output2[x][y][z][t]);
-                }
-                for(size_t t = 5; t < 85; t++)
-                {
-                    output2[x][y][z][t] = output2[x][y][z][4] * output2[x][y][z][t];
-                    if(output2[x][y][z][t] <= th_conf)
-                    {
-                        output2[x][y][z][t] = 0;
-                    }
-                }
-            }
-        }
-    }
-    fclose(fp);
-    n=0;
-    fp = fopen(data_file3, "r");
-    while (fscanf(fp, "%f", &temp3[n++]) != EOF){}
-    n=0;
-    for(size_t x = 0; x < 52; x++)
-    {
-        for(size_t y = 0; y < 52; y++)
-        {
-            for(size_t z = 0; z < 3; z++)
-            {
-                for(size_t t = 0; t < 85; t++,n++)
-                {
-                    output3[x][y][z][t] = temp3[n];
-                }
-                //for(size_t t = 0; t < 2; t++)
-                for(size_t t = 0; t < 4; t++)
-                {
-                    output3[x][y][z][t] = sigmoid(output3[x][y][z][t]);
-                }
-                for(size_t t = 4; t < 85; t++)
-                {
-                    output3[x][y][z][t] = sigmoid(output3[x][y][z][t]);
-                }
-                for(size_t t = 5; t < 85; t++)
-                {
-                    output3[x][y][z][t] = output3[x][y][z][4] * output3[x][y][z][t];
-                    if(output3[x][y][z][t] <= th_conf)
-                    {
-                        output3[x][y][z][t] = 0;
-                    }
-                }
-            }
-        }
-    }
-    fclose(fp);
-    
-    
     //process_output(output1, grid_w1, grid_h1, 2, &count);
     
     for(int i = 0; i < grid_w1*grid_h1; i++)
