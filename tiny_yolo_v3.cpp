@@ -213,66 +213,14 @@ void print_box(detection d, int i){
     printf("\x1b[1m"); //Change the top first colour
     printf("Detected        : %s\n",label_file_map[d.c].c_str());//, detected
     printf("\x1b[0m"); //Change the colour to default
-    printf("Bounding Box    : (X, Y, W, H) = (%.2f, %.2f, %.2f, %.2f)\n", d.bbox.x, d.bbox.y, d.bbox.w, d.bbox.h);
+    //printf("Bounding Box    : (X, Y, W, H) = (%.2f, %.2f, %.2f, %.2f)\n", d.bbox.x, d.bbox.y, d.bbox.w, d.bbox.h);
+    printf("Bounding Box    : \n");
     //printf("Confidence (IoU): %.1f %%\n", d.conf*100); //not use in yolov3
     //printf("Probability     : %.1f %%\n",  d.prob*100); //not use in yolov3
-    printf("Score           : %.1f %%\n", d.prob * d.conf*100);
+    //printf("Score           : %.1f %%\n", d.prob * d.conf*100);
+    printf("Score           : \n");
 }
 
-
-
-    float th_conf = 0.5;
-    float th_prob = 0.5;
-    std::vector<detection> det;
-/*
-//void process_output(float output[13][13][3][85], int grid_w, int grid_h, int anchor, int* count)
-void process_output(float**** output, int grid_w, int grid_h, int anchor, int* count)
-{
-    for(int i = 0; i < grid_w*grid_h; i++)
-    {
-        float row = (float)i / (float)grid_w;
-        float col = i % grid_w;
-        for(int b = 0; b < 3; b++)
-        {
-            float objectness = output[int(row)][int(col)][b][4];
-            if(objectness > th_conf)
-            {
-                float x, y, w, h;
-                x = output[int(row)][int(col)][b][0];
-                y = output[int(row)][int(col)][b][1];
-                w = output[int(row)][int(col)][b][2];
-                h = output[int(row)][int(col)][b][3];
-                
-                float xPos = (col + x)*32;
-                float yPos = (row + y)*32;
-                float wBox = anchors[anchor * b + 0] * exp(w);
-                float hBox = anchors[anchor * b + 1] * exp(h);
-                
-                Box bb = float_to_box(xPos, yPos, wBox, hBox);
-                
-                float classes[80];
-                for (int c = 0;c<80;c++){
-                    classes[c] = output[int(row)][int(col)][b][c+5];
-                }
-                float max_pd = 0;
-                int detected = -1;
-                for (int c = 0;c<80;c++){
-                    if (classes[c]>max_pd){
-                        detected = c;
-                        max_pd = classes[c];
-                    }
-                }
-                float score = max_pd;
-                if (score>th_prob){
-                    detection d = { bb, objectness , detected,max_pd };
-                    det.push_back(d);
-                    (*count)++;
-                }
-            }
-        }
-    }
-}
-*/
 
 
 int main(int argc, char* argv[])
@@ -290,7 +238,10 @@ int main(int argc, char* argv[])
 
     //Postprocessing Variables
     int count = 0;
-
+    float th_conf = 0.5;
+    float th_prob = 0.5;
+    std::vector<detection> det;
+    
     //Timing Variables
     struct timeval start_time, stop_time;
     double diff, diff_capture;
@@ -658,8 +609,21 @@ int main(int argc, char* argv[])
     fclose(fp1);
     fclose(fp2);
     
-    
-    
+    /*
+    float mx=0,mn=0;
+    for(size_t i = 0; i<42588; i++){
+        if(mx<out1[i])
+        {
+            mx=out1[i];
+        }
+        if(mn>out1[i])
+        {
+            mn=out1[i];
+        }
+    }
+    printf("max: %f\n", mx);
+    printf("min: %f\n", mn);
+    */
     
     if(loadLabelFile(filename) != 0)
     {
@@ -678,6 +642,7 @@ int main(int argc, char* argv[])
             double objectness = 1;
             float max_pd = 1;
             int detected = out3[i+1];
+            //printf("output: %d\n", out3[i+2]);
             detection d = { bb, objectness , detected,max_pd };
             det.push_back(d);
             count++;
