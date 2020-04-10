@@ -213,12 +213,11 @@ void print_box(detection d, int i){
     printf("\x1b[1m"); //Change the top first colour
     printf("Detected        : %s\n",label_file_map[d.c].c_str());//, detected
     printf("\x1b[0m"); //Change the colour to default
-    //printf("Bounding Box    : (X, Y, W, H) = (%.2f, %.2f, %.2f, %.2f)\n", d.bbox.x, d.bbox.y, d.bbox.w, d.bbox.h);
-    printf("Bounding Box    : \n");
+    printf("Bounding Box    : (X, Y, W, H) = (%.2f, %.2f, %.2f, %.2f)\n", d.bbox.x, d.bbox.y, d.bbox.w, d.bbox.h);
     //printf("Confidence (IoU): %.1f %%\n", d.conf*100); //not use in yolov3
     //printf("Probability     : %.1f %%\n",  d.prob*100); //not use in yolov3
     //printf("Score           : %.1f %%\n", d.prob * d.conf*100);
-    printf("Score           : \n");
+    printf("Score           : %.16f %%\n", 1-d.prob * d.conf);
 }
 
 
@@ -229,8 +228,8 @@ int main(int argc, char* argv[])
     inference_mode = DETECTION;
     //Config : model
     std::string model_name = "yolov3-tiny.onnx";
-    //std::string model_path= "yolov3-tiny/yolov3-tiny.onnx";
-    std::string model_path= "yolov3-tiny/yolov3.onnx";
+    std::string model_path= "yolov3-tiny/yolov3-tiny.onnx";
+    //std::string model_path= "yolov3-tiny/yolov3.onnx";
     
     printf("Start Loading Model %s\n", model_name.c_str());
 
@@ -243,17 +242,35 @@ int main(int argc, char* argv[])
     std::vector<detection> det;
     
     //Timing Variables
-    struct timeval start_time, stop_time;
-    double diff, diff_capture;
+    struct timeval start_time, stop_time,start_time_post, stop_time_post;
+    double diff, time_pre, time_post;
 
     //UNCOMMENT to use dog image as an input
-
+    struct S_Pixel
+    {
+        unsigned char RGBA[3];
+    };
+    
+    gettimeofday(&start_time, nullptr);
+    
     stbi_uc * img_data = stbi_load(input_file, &img_sizex, &img_sizey, &img_channels, STBI_default);
-
     std::vector<float> input_tensor_values_shape(2);
-    //input_tensor_values_shape[0] = img_sizey;
-    //input_tensor_values_shape[1] = img_sizex;
-
+    input_tensor_values_shape[0] = img_sizey;
+    input_tensor_values_shape[1] = img_sizex;
+    Image *imge = new Image(img_sizex, img_sizey, 3);
+    
+    const S_Pixel * imgPixels0(reinterpret_cast<const S_Pixel *>(img_data));
+    
+    for ( size_t c = 0; c < 3; c++){
+        for ( size_t y = 0; y < img_sizey; y++){
+            for ( size_t x = 0; x < img_sizex; x++){
+                const int val(imgPixels0[y * img_sizex + x].RGBA[c]);
+                imge->set((y*img_sizex+x)*3+c, val);
+            }
+        }
+    }
+    
+    
     /////////////
     int sizex=416, sizey=416;
     int img_sizex_new,img_sizey_new;
@@ -279,10 +296,7 @@ int main(int argc, char* argv[])
     //////////////
 
 
-    struct S_Pixel
-    {
-        unsigned char RGBA[3];
-    };
+    
     const S_Pixel * imgPixels(reinterpret_cast<const S_Pixel *>(img_data_new));
 
     //Config: label txt
@@ -344,9 +358,6 @@ int main(int argc, char* argv[])
     
         g_ort->ReleaseTypeInfo(typeinfo);
     }
-
-
-
 // Print Out Input details
     // iterate over all input nodes
     for (size_t i = 0; i < num_input_nodes; i++){
@@ -408,49 +419,22 @@ int main(int argc, char* argv[])
     std::map<float,int> result; //Output for classification
 
     
-    Image *imge = new Image(img_sizex, img_sizey, 3);
+    
     //Transpose
     offs = 0;
     for ( c = 0; c < 3; c++){
         for ( y = 0; y < img_sizey; y++){
             for ( x = 0; x < img_sizex; x++, offs++){
                 const int val(imgPixels[y * img_sizex + x].RGBA[c]);
-                imge->set((y*img_sizex+x)*3+c, val);
-                //if(offs >= 519100 && offs <519200){printf("val %d: %f\n",offs,((float)val)/255);}
-                //printf("val2: %.6f\n",(float)(imge->img_buffer[(y*img_sizex+x)*3+c])/255);
                 input_tensor_values[offs] = ((float)val)/255;
             }
         }
     }
-    //size_t size_x,size_y;
-    //size_x=atoi(argv[1]);
-    //size_y=atoi(argv[2]);
-    //input_tensor_values_shape[0] = size_y;
-    //input_tensor_values_shape[1] = size_x;
-    input_tensor_values_shape[0] = img_sizey;
-    input_tensor_values_shape[1] = img_sizex;
     
     
+    gettimeofday(&stop_time, nullptr);
     
-    /*
-    char* data_image_file = "input_0.txt";
-    float data_image[416*416*3];
-    int nm = 0;
-    
-    FILE *fpi;
-    fpi = fopen(data_image_file, "r");
-    while (fscanf(fpi, "%f", &data_image[nm++]) != EOF){}
-    fclose(fpi);
-    
-    for(size_t i=0;i<(416*416*3);i++)
-    {
-        input_tensor_values[i] = data_image[i];
-    }
-    input_tensor_values_shape[0] = 506.0;
-    input_tensor_values_shape[1] = 640.0;
-    */
-    
-    
+    time_pre = timedifference_msec(start_time,stop_time);
     
     // create input tensor object from data values
     OrtMemoryInfo* memory_info;
@@ -463,81 +447,39 @@ int main(int argc, char* argv[])
     */
     
     std::vector<OrtValue* > input_tensor(input_node_names.size());
-    OrtValue* input_tensor_image = NULL;
-    OrtValue* input_tensor_shape = NULL;
-    //OrtValue* input_tensor[2] = {nullptr};
     
-    //CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values.data(), input_tensor_size*sizeof(float), input_node_dims_input.data(), 4, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor_image));
-    //CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values_shape.data(), 2*sizeof(float), input_node_dims_shape.data(), 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor_shape));
     CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values.data(), input_tensor_size*sizeof(float), input_node_dims_input.data(), 4, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor[0]));
     CheckStatus(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_tensor_values_shape.data(), 2*sizeof(float), input_node_dims_shape.data(), 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor[1]));
     
     int is_tensor;
-    //CheckStatus(g_ort->IsTensor(input_tensor_image,&is_tensor));
     CheckStatus(g_ort->IsTensor(input_tensor[0],&is_tensor));
     assert(is_tensor);
-    //CheckStatus(g_ort->IsTensor(input_tensor_shape,&is_tensor));
     CheckStatus(g_ort->IsTensor(input_tensor[1],&is_tensor));
     assert(is_tensor);
     g_ort->ReleaseMemoryInfo(memory_info);
     
-    
-    
-    //std::vector<const OrtValue*> input_tensor(2);
-    //input_tensor.push_back((const OrtValue* )input_tensor_image);
-    //input_tensor.push_back((const OrtValue* )input_tensor_shape);
-    
-    
-    //input_tensor[0] = input_tensor_image;
-    //input_tensor[1] = input_tensor_shape;
-    
-    
-    //printf("input_tensor_image %zu \n", input_tensor_image);
-    //printf("input_tensor_shape %zu \n", input_tensor_shape);
-    //printf("input_tensor %zu \n", input_tensor.data());
-    //printf("input_tensor[0] %zu \n", input_tensor[0]);
-    //printf("input_tensor[1] %zu \n", input_tensor[1]);
-    
-    
     // RUN: score model & input tensor, get back output tensor
-    //OrtValue* output_tensor[3] = {nullptr};
     std::vector<OrtValue *> output_tensor(3);
-    OrtValue* output_tensor_boxes = NULL;
-    OrtValue* output_tensor_scores = NULL;
-    OrtValue* output_tensor_classes = NULL;
     output_tensor[0] = NULL;
     output_tensor[1] = NULL;
     output_tensor[2] = NULL;
     
-    //std::vector<const char*> input_names = { "image_shape", "input_1"};
-    //std::vector<const char*> input_names = { "input_1", "image_shape"};
-    
     gettimeofday(&start_time, nullptr);
     CheckStatus(g_ort->Run(session, NULL, input_node_names.data(), input_tensor.data(), 2, output_node_names.data(), 3, output_tensor.data()));
-    //CheckStatus(g_ort->Run(session, NULL, input_names.data(), &input_tensor[0], 2, output_node_names.data(), 3, output_tensor));
-    //CheckStatus(g_ort->Run(session, NULL, input_names.data(), input_tensor.data(), 2, output_node_names.data(), 3, output_tensor.data()));
-    
     gettimeofday(&stop_time, nullptr);
     
-    output_tensor_boxes = output_tensor[0];
-    output_tensor_scores = output_tensor[1];
-    output_tensor_classes = output_tensor[2];
-    
-    CheckStatus(g_ort->IsTensor(output_tensor_boxes,&is_tensor));
+    CheckStatus(g_ort->IsTensor(output_tensor[0],&is_tensor));
     assert(is_tensor);
-    CheckStatus(g_ort->IsTensor(output_tensor_scores,&is_tensor));
+    CheckStatus(g_ort->IsTensor(output_tensor[1],&is_tensor));
     assert(is_tensor);
-    CheckStatus(g_ort->IsTensor(output_tensor_classes,&is_tensor));
+    CheckStatus(g_ort->IsTensor(output_tensor[2],&is_tensor));
     assert(is_tensor);
     
     diff = timedifference_msec(start_time,stop_time);
-
-    //size_t size;
-    //g_ort->GetStringTensorDataLength(output_tensor[0],&size);
-    //printf("size: %d\n\n", size);
+    
+    gettimeofday(&start_time_post, nullptr);//start postproc timer
     
     // Get pointer to output tensor float values
-    
     float* out1 = NULL;
     g_ort->GetTensorMutableData(output_tensor[0], (void**)&out1);
     float* out2 = NULL;
@@ -546,27 +488,6 @@ int main(int argc, char* argv[])
     g_ort->GetTensorMutableData(output_tensor[2], (void**)&out3);
     
     /*
-    for(size_t i = 42580; i<42588; i++){
-    //for(size_t i = 0; i<20; i++){
-        printf("out1: %d", i);
-        printf(" output: %f\n", out1[i]);
-    }
-    printf("\n");
-    
-    for(size_t i = 851750; i<851760; i++){
-    //for(size_t i = 0; i<20; i++){
-        printf("out2: %d", i);
-        printf(" output: %f\n", out2[i]);
-    }
-    printf("\n");
-    
-    for(size_t i = 0; i<100; i++){
-        if(out3[i] < 0) break;
-        printf("out3: %d", i);
-        printf(" output: %d\n", out3[i]);
-    }
-    */
-    
     char* output_0 = "output_0.txt";
     char* output_1 = "output_1.txt";
     char* output_2 = "output_2.txt";
@@ -580,7 +501,8 @@ int main(int argc, char* argv[])
     //size_t beg,end;
     //beg=atoi(argv[1]);
     //end=atoi(argv[2]);
-    for(size_t i = 0; i<42588; i++){
+    //for(size_t i = 0; i<42588; i++){ //for yolov3
+    for(size_t i = 0; i<2535*4; i++){ //for tinyyolov3
     //for(size_t i = 0; i<20; i++){
         //printf("out1: %d", i);
         //printf(" output: %f\n", out1[i]);
@@ -588,7 +510,8 @@ int main(int argc, char* argv[])
     }
     printf("\n");
     
-    for(size_t i = 0; i<851760; i++){
+    //for(size_t i = 0; i<851760; i++){ //for yolov3
+    for(size_t i = 0; i<80*2535; i++){ //for tinyyolov3
     //for(size_t i = 0; i<20; i++){
         //printf("out2: %d", i);
         //printf(" output: %f\n", out2[i]);
@@ -599,7 +522,8 @@ int main(int argc, char* argv[])
     if(out3 != NULL)
     {
         for(size_t i = 0; i<100; i++){
-            if(out3[i] < 0) break;
+            //if((out3[i] < 0) || (out3[i] > 10647)) break; // for yolov3
+            if((out3[i] < 0) || (out3[i] > 2535)) break; // for tinyyolov3
             //printf("out3: %d", i);
             //printf(" output: %d\n", out3[i]);
             fprintf(fp2, "%d\n", out3[i]);
@@ -608,21 +532,6 @@ int main(int argc, char* argv[])
     fclose(fp0);
     fclose(fp1);
     fclose(fp2);
-    
-    /*
-    float mx=0,mn=0;
-    for(size_t i = 0; i<42588; i++){
-        if(mx<out1[i])
-        {
-            mx=out1[i];
-        }
-        if(mn>out1[i])
-        {
-            mn=out1[i];
-        }
-    }
-    printf("max: %f\n", mx);
-    printf("min: %f\n", mn);
     */
     
     if(loadLabelFile(filename) != 0)
@@ -637,21 +546,21 @@ int main(int argc, char* argv[])
     if(out3 != NULL)
     {
         for(size_t i = 0; i<100; i+=3){
-            if(out3[i] < 0) break;
-            Box bb = float_to_box(100, 100, 3, 4);
+            //if((out3[i] < 0) || (out3[i] > 10647)) break; // for yolov3
+            if((out3[i] < 0) || (out3[i] > 2535)) break; // for tinyyolov3
+            float ymin = out1[out3[i+2]*4];
+            float xmin = out1[out3[i+2]*4+1];
+            float ymax = out1[out3[i+2]*4+2];
+            float xmax = out1[out3[i+2]*4+3];
+            Box bb = float_to_box((xmin+xmax)/2, (ymin+ymax)/2, xmax-xmin, ymax-ymin);
             double objectness = 1;
-            float max_pd = 1;
             int detected = out3[i+1];
-            //printf("output: %d\n", out3[i+2]);
+            float max_pd = out2[out3[i+2]*80 + detected];
             detection d = { bb, objectness , detected,max_pd };
             det.push_back(d);
             count++;
-            
         }
     }
-    
-    //correct_yolo_boxes
-    //filter_boxes_nms(det, count, 0.6);
     
     int i, j=0;
     //Render boxes on image and print their details
@@ -664,24 +573,27 @@ int main(int argc, char* argv[])
         std::string result_str = label_file_map[det[i].c]+ " "+ stream.str();
         imge->drawRect((int)det[i].bbox.x, (int)det[i].bbox.y, (int)det[i].bbox.w, (int)det[i].bbox.h, (int)det[i].c, result_str.c_str());
     }
-    gettimeofday(&stop_time, nullptr);//Stop postproc timer
-    size_t time_post = timedifference_msec(start_time,stop_time);
-    //printf("Postprocessing Time: %.3f msec\n", time_post);
+    gettimeofday(&stop_time_post, nullptr);//Stop postproc timer
+    time_post = timedifference_msec(start_time_post,stop_time_post);
+    printf("\n");
+    printf("\x1b[36;1m");
+    printf("Preprocessing Time: %.3f msec\n", time_pre);
+    printf("Postprocessing Time: %.3f msec\n", time_post);
     
     
     //Save Image
     imge->save(save_filename);
 
-    g_ort->ReleaseValue(input_tensor_image);
-    g_ort->ReleaseValue(input_tensor_shape);
-    g_ort->ReleaseValue(output_tensor_boxes);
-    g_ort->ReleaseValue(output_tensor_scores);
-    g_ort->ReleaseValue(output_tensor_classes);
+    g_ort->ReleaseValue(input_tensor[0]);
+    g_ort->ReleaseValue(input_tensor[1]);
+    g_ort->ReleaseValue(output_tensor[0]);
+    g_ort->ReleaseValue(output_tensor[1]);
+    g_ort->ReleaseValue(output_tensor[2]);
     
     
-    //printf("\x1b[36;1m");
-    //printf("Prediction Time: %.3f msec\n\n", diff);
-    //printf("\x1b[0m");
+    printf("\x1b[36;1m");
+    printf("Prediction Time: %.3f msec\n\n", diff);
+    printf("\x1b[0m");
 
     delete imge;
     g_ort->ReleaseSession(session);
