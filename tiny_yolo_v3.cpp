@@ -49,44 +49,7 @@ char* save_filename = "output.jpg";
 const char* input_file = "yolo004.jpg";
 const char* mat_out = "mat_out.jpg";
 
-/*
-double anchors[] = {
-    1.08,   1.19,
-    3.42,   4.41,
-    6.63,   11.38,
-    9.42,   5.11,
-    16.62,  10.52
-};
-*/
-/*
-double anchors[] = { //for tinyYolov3
-    10,   14,
-    23,   27,
-    37,   58,
-    81,   82,
-    135,  169,
-    344,  319
-};
-*/
-// tinyyolov3: 10,14,  23,27,  37,58,  81,82,  135,169,  344,319
-// yolov3 10,13,  16,30,  33,23,  30,61,  62,45,  59,119,  116,90,  156,198,  373,326
-
-double anchors[] = { //for Yolov3
-    116,90,
-    156,198,
-    373,326,
-    30,61,
-    62,45,
-    59,119,
-    10,13,
-    16,30,
-    33,23
-};
-
-
-
 const OrtApi* g_ort = OrtGetApiBase()->GetApi(ORT_API_VERSION);
-
 
 void CheckStatus(OrtStatus* status)
 {
@@ -132,42 +95,6 @@ int loadLabelFile(std::string label_file_name)
 }
 
 /*****************************************
-* Function Name : sigmoid
-* Description   : helper function for YOLO Post Processing
-* Arguments :
-* Return value  :
-******************************************/
-double sigmoid(double x){
-    return 1.0/(1.0+exp(-x));
-}
-
-/*****************************************
-* Function Name : softmax
-* Description   : helper function for YOLO Post Processing
-* Arguments :
-* Return value  :
-******************************************/
-void softmax(float val[]){
-    float max = -INT_MAX;
-    float sum = 0;
-
-    for (int i = 0;i<80;i++){
-        max = std::max(max, val[i]);
-    }
-
-    for (int i = 0;i<80;i++){
-        val[i]= (float) exp(val[i]-max);
-        sum+= val[i];
-    }
-
-    for (int i = 0;i<80;i++){
-        val[i]= val[i]/sum;
-    }
-
-    // printf("Softmax: max %f sum %f\n", max, sum);
-}
-
-/*****************************************
 * Function Name : timedifference_msec
 * Description   :
 * Arguments :
@@ -176,27 +103,6 @@ void softmax(float val[]){
 static double timedifference_msec(struct timeval t0, struct timeval t1)
 {
     return (t1.tv_sec - t0.tv_sec) * 1000.0 + (t1.tv_usec - t0.tv_usec) / 1000.0;
-}
-
-
-/*****************************************
-* Function Name :offset
-* Description   : c
-* Arguments :
-* Return value  :
-******************************************/
-int offset(int o,int channel){
-    return  o+ channel*YOLO_GRID_X*YOLO_GRID_Y;
-}
-
-/*****************************************
-* Function Name :offset
-* Description       : c
-* Arguments         :
-* Return value  :
-******************************************/
-int offset_(int b, int y, int x){
-    return b*(20+5)* YOLO_GRID_X * YOLO_GRID_Y + y * YOLO_GRID_X + x;
 }
 
 /*****************************************
@@ -216,8 +122,7 @@ void print_box(detection d, int i){
     printf("Bounding Box    : (X, Y, W, H) = (%.2f, %.2f, %.2f, %.2f)\n", d.bbox.x, d.bbox.y, d.bbox.w, d.bbox.h);
     //printf("Confidence (IoU): %.1f %%\n", d.conf*100); //not use in yolov3
     //printf("Probability     : %.1f %%\n",  d.prob*100); //not use in yolov3
-    //printf("Score           : %.1f %%\n", d.prob * d.conf*100);
-    printf("Score           : %.16f %%\n", 1-d.prob * d.conf);
+    printf("Score           : %f %%\n", d.prob * d.conf * 100);
 }
 
 
@@ -228,8 +133,7 @@ int main(int argc, char* argv[])
     inference_mode = DETECTION;
     //Config : model
     std::string model_name = "yolov3-tiny.onnx";
-    std::string model_path= "yolov3-tiny/yolov3-tiny.onnx";
-    //std::string model_path= "yolov3-tiny/yolov3.onnx";
+    std::string model_path= "yolov3-tiny.onnx";
     
     printf("Start Loading Model %s\n", model_name.c_str());
 
@@ -407,9 +311,7 @@ int main(int argc, char* argv[])
 
         g_ort->ReleaseTypeInfo(typeinfo);
     }
-
-
-    //g_ort->ReleaseMemory(allocator);
+    
     //ONNX: Prepare input container
     size_t input_tensor_size = img_sizex * img_sizey * 3;
     std::vector<float> input_tensor_values(input_tensor_size);
@@ -417,8 +319,6 @@ int main(int argc, char* argv[])
     int frame_count = 0;
     size_t offs, c, y, x;
     std::map<float,int> result; //Output for classification
-
-    
     
     //Transpose
     offs = 0;
@@ -431,7 +331,6 @@ int main(int argc, char* argv[])
         }
     }
     
-    
     gettimeofday(&stop_time, nullptr);
     
     time_pre = timedifference_msec(start_time,stop_time);
@@ -439,12 +338,6 @@ int main(int argc, char* argv[])
     // create input tensor object from data values
     OrtMemoryInfo* memory_info;
     CheckStatus(g_ort->CreateCpuMemoryInfo(OrtArenaAllocator, OrtMemTypeDefault, &memory_info));
-
-    /*
-    std::vector< std::vector<int64_t> > input_node_dims;
-    input_node_dims.push_back(input_node_dims_input);
-    input_node_dims.push_back(input_node_dims_shape);
-    */
     
     std::vector<OrtValue* > input_tensor(input_node_names.size());
     
@@ -487,53 +380,6 @@ int main(int argc, char* argv[])
     int* out3 = NULL;
     g_ort->GetTensorMutableData(output_tensor[2], (void**)&out3);
     
-    /*
-    char* output_0 = "output_0.txt";
-    char* output_1 = "output_1.txt";
-    char* output_2 = "output_2.txt";
-    FILE *fp0;
-    FILE *fp1;
-    FILE *fp2;
-    fp0 = fopen(output_0, "w+");
-    fp1 = fopen(output_1, "w+");
-    fp2 = fopen(output_2, "w+");
-    
-    //size_t beg,end;
-    //beg=atoi(argv[1]);
-    //end=atoi(argv[2]);
-    //for(size_t i = 0; i<42588; i++){ //for yolov3
-    for(size_t i = 0; i<2535*4; i++){ //for tinyyolov3
-    //for(size_t i = 0; i<20; i++){
-        //printf("out1: %d", i);
-        //printf(" output: %f\n", out1[i]);
-        fprintf(fp0, "%.14f\n", out1[i]);
-    }
-    printf("\n");
-    
-    //for(size_t i = 0; i<851760; i++){ //for yolov3
-    for(size_t i = 0; i<80*2535; i++){ //for tinyyolov3
-    //for(size_t i = 0; i<20; i++){
-        //printf("out2: %d", i);
-        //printf(" output: %f\n", out2[i]);
-        fprintf(fp1, "%.14f\n", out2[i]);
-    }
-    printf("\n");
-    
-    if(out3 != NULL)
-    {
-        for(size_t i = 0; i<100; i++){
-            //if((out3[i] < 0) || (out3[i] > 10647)) break; // for yolov3
-            if((out3[i] < 0) || (out3[i] > 2535)) break; // for tinyyolov3
-            //printf("out3: %d", i);
-            //printf(" output: %d\n", out3[i]);
-            fprintf(fp2, "%d\n", out3[i]);
-        }
-    }
-    fclose(fp0);
-    fclose(fp1);
-    fclose(fp2);
-    */
-    
     if(loadLabelFile(filename) != 0)
     {
         fprintf(stderr,"Fail to open or process file %s\n",filename.c_str());
@@ -545,8 +391,7 @@ int main(int argc, char* argv[])
     
     if(out3 != NULL)
     {
-        for(size_t i = 0; i<100; i+=3){
-            //if((out3[i] < 0) || (out3[i] > 10647)) break; // for yolov3
+        for(size_t i = 0; i<10000; i+=3){
             if((out3[i] < 0) || (out3[i] > 2535)) break; // for tinyyolov3
             float ymin = out1[out3[i+2]*4];
             float xmin = out1[out3[i+2]*4+1];
@@ -555,8 +400,8 @@ int main(int argc, char* argv[])
             Box bb = float_to_box((xmin+xmax)/2, (ymin+ymax)/2, xmax-xmin, ymax-ymin);
             double objectness = 1;
             int detected = out3[i+1];
-            float max_pd = out2[out3[i+2]*80 + detected];
-            detection d = { bb, objectness , detected,max_pd };
+            float score = out2[2535 * out3[i+1] + out3[i+2]];
+            detection d = { bb, objectness , detected,score };
             det.push_back(d);
             count++;
         }
@@ -590,6 +435,7 @@ int main(int argc, char* argv[])
     g_ort->ReleaseValue(output_tensor[1]);
     g_ort->ReleaseValue(output_tensor[2]);
     
+    remove(mat_out);
     
     printf("\x1b[36;1m");
     printf("Prediction Time: %.3f msec\n\n", diff);
